@@ -23,8 +23,8 @@ local THEME_KEY      = Enum.KeyCode.T
 local SPEED_MIN      = 1
 local SPEED_MAX      = 1000
 
--- Logo (kosongkan "" untuk huruf "P")
-local LOGO_IMAGE_ID = "rbxassetid://139533138163627"
+-- ✅ Logo otomatis pakai avatar user sendiri
+local LOGO_IMAGE_ID  = "rbxthumb://type=AvatarHeadShot&id=" .. player.UserId .. "&w=150&h=150"
 
 -- Theme default: "light" atau "dark"
 local DEFAULT_THEME  = "light"
@@ -449,9 +449,9 @@ logoImage.Name = "LogoImage"
 logoImage.Size = UDim2.new(1, -6, 1, -6)
 logoImage.Position = UDim2.new(0, 3, 0, 3)
 logoImage.BackgroundTransparency = 1
-logoImage.Image = LOGO_IMAGE_ID ~= "" and LOGO_IMAGE_ID or ""
+logoImage.Image = LOGO_IMAGE_ID
 logoImage.ImageColor3 = Color3.fromRGB(255, 255, 255)
-logoImage.Visible = (LOGO_IMAGE_ID ~= "")
+logoImage.Visible = false
 logoImage.ZIndex = 2
 logoImage.Parent = logoBtn
 
@@ -459,9 +459,23 @@ local logoImageCorner = Instance.new("UICorner")
 logoImageCorner.CornerRadius = UDim.new(1, 0)
 logoImageCorner.Parent = logoImage
 
-if LOGO_IMAGE_ID ~= "" then
-    logoBtn.Text = ""
-end
+-- Fallback: kalau gambar gagal load, tampilkan huruf P
+logoBtn.Text = ""  -- sembunyikan huruf P dulu
+logoImage:GetPropertyChangedSignal("IsLoaded"):Connect(function()
+    if logoImage.IsLoaded then
+        logoImage.Visible = true
+        logoBtn.Text = ""
+    else
+        logoImage.Visible = false
+        logoBtn.Text = "P"
+    end
+end)
+task.delay(3, function()
+    if not logoImage.IsLoaded then
+        logoImage.Visible = false
+        logoBtn.Text = "P"
+    end
+end)
 
 local logoTag = Instance.new("TextLabel")
 logoTag.Name = "LogoTag"
@@ -525,9 +539,7 @@ local function applyTheme(themeName)
 
     tw(dot, { BackgroundColor3 = flying and T.statusFlyDot or T.accent })
 
-    if LOGO_IMAGE_ID == "" then
-        tw(logoBtn, { BackgroundColor3 = T.logoBg, TextColor3 = T.logoText })
-    end
+    tw(logoBtn, { BackgroundColor3 = T.logoBg, TextColor3 = T.logoText })
     logoStroke.Color = T.logoStroke
     tw(logoTag, { TextColor3 = T.logoTag })
 end
@@ -757,9 +769,6 @@ local function setUIFlying(state)
         statusLabel.Text = "Flying  |  By @Pall"
         statusLabel.TextColor3 = T.statusFlyText
         dot.BackgroundColor3 = T.statusFlyDot
-        if LOGO_IMAGE_ID == "" then
-            logoBtn.BackgroundColor3 = T.statusFlyDot
-        end
     else
         TweenService:Create(toggleBtn, tweenInfo, {
             BackgroundColor3 = T.btnBg,
@@ -770,9 +779,6 @@ local function setUIFlying(state)
         statusLabel.Text = "Idle  |  By @Pall"
         statusLabel.TextColor3 = T.statusText
         dot.BackgroundColor3 = T.accent
-        if LOGO_IMAGE_ID == "" then
-            logoBtn.BackgroundColor3 = T.logoBg
-        end
     end
 end
 
