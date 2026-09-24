@@ -24,7 +24,7 @@ local SPEED_MIN      = 1
 local SPEED_MAX      = 1000
 
 -- Logo (kosongkan "" untuk huruf "P")
-local LOGO_IMAGE_ID  = ""
+local LOGO_IMAGE_ID = "rbxassetid://139533138163627"
 
 -- Theme default: "light" atau "dark"
 local DEFAULT_THEME  = "light"
