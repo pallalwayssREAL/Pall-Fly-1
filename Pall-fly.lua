@@ -2,7 +2,7 @@
 --  Pall Fly                                            --
 --  By @Pall                                            --
 --  Fitur: Fly, Minimize, Hide, Logo, Resize, Themes,  --
---         Auto-Hold E (B)                              --
+--         Auto-Hold E (B), Panic Stop (P)              --
 --========================================================--
 
 local UserInputService = game:GetService("UserInputService")
@@ -24,6 +24,7 @@ local HIDE_KEY       = Enum.KeyCode.H
 local THEME_KEY      = Enum.KeyCode.T
 local AUTOHOLD_KEY   = Enum.KeyCode.B
 local MODE_KEY       = Enum.KeyCode.N
+local PANIC_KEY      = Enum.KeyCode.P
 local SPEED_MIN      = 1
 local SPEED_MAX      = 1000
 
@@ -210,7 +211,6 @@ titleLabel.TextColor3 = T.titleText
 titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 titleLabel.Parent = titleBar
 
--- Tombol Theme
 local themeBtn = Instance.new("TextButton")
 themeBtn.Name = "ThemeBtn"
 themeBtn.Size = UDim2.new(0, 26, 0, 26)
@@ -227,7 +227,6 @@ local themeCorner = Instance.new("UICorner")
 themeCorner.CornerRadius = UDim.new(0, 8)
 themeCorner.Parent = themeBtn
 
--- Tombol Minimize
 local minimizeBtn = Instance.new("TextButton")
 minimizeBtn.Name = "MinimizeBtn"
 minimizeBtn.Size = UDim2.new(0, 26, 0, 26)
@@ -244,7 +243,6 @@ local minCorner = Instance.new("UICorner")
 minCorner.CornerRadius = UDim.new(0, 8)
 minCorner.Parent = minimizeBtn
 
--- Tombol Hide
 local hideBtn = Instance.new("TextButton")
 hideBtn.Name = "HideBtn"
 hideBtn.Size = UDim2.new(0, 26, 0, 26)
@@ -450,7 +448,7 @@ keybindRow.Parent = panel
 
 local keybindLbl = Instance.new("TextLabel")
 keybindLbl.Name = "KeybindLbl"
-keybindLbl.Text = "C Fly | M Min | H Hide | T Theme | B Auto"
+keybindLbl.Text = "C Fly | M Min | H Hide | T Theme | B Auto | P Panic"
 keybindLbl.Size = UDim2.new(1, 0, 1, 0)
 keybindLbl.BackgroundTransparency = 1
 keybindLbl.Font = Enum.Font.Gotham
@@ -555,8 +553,10 @@ local resizeStart, resizeStartSize
 
 -- Auto-hold state
 local autoHolding = false
-local autoHoldThread = nil
+local autoHoldConnection = nil
 local autoHoldMode = AUTO_HOLD_MODE
+local lastPressTime = 0
+local lastReleaseTime = 0
 
 --========================= THEME APPLY =========================--
 local function applyTheme(themeName)
@@ -848,65 +848,91 @@ local function setUIFlying(state)
     end
 end
 
---========================= AUTO-HOLD E SYSTEM =========================--
+--========================= AUTO-HOLD E SYSTEM (FIXED) =========================--
 local function hasKeypressSupport()
     return type(keypress) == "function" and type(keyrelease) == "function"
 end
 
 local function pressE()
     if hasKeypressSupport() then
-        keypress(Enum.KeyCode.E)
+        pcall(function() keypress(Enum.KeyCode.E) end)
     else
-        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+        pcall(function()
+            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+        end)
     end
 end
 
 local function releaseE()
     if hasKeypressSupport() then
-        keyrelease(Enum.KeyCode.E)
+        pcall(function() keyrelease(Enum.KeyCode.E) end)
     else
-        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+        pcall(function()
+            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+        end)
     end
 end
 
 local function startAutoHold()
     if autoHolding then return end
     autoHolding = true
+    lastPressTime = tick()
+    lastReleaseTime = 0
 
-    autoHoldThread = task.spawn(function()
-        while autoHolding do
-            pressE()
+    -- Lepas dulu, baru press
+    releaseE()
+    task.wait(0.05)
+    pressE()
 
-            if autoHoldMode == "pulse" then
-                task.wait(PULSE_HOLD_TIME)
-                if not autoHolding then break end
-                releaseE()
-                task.wait(PULSE_REL_TIME)
+    autoHoldConnection = RunService.Heartbeat:Connect(function()
+        if not autoHolding then return end
+
+        local now = tick()
+
+        if autoHoldMode == "pulse" then
+            if lastReleaseTime == 0 then
+                -- Fase hold
+                if now - lastPressTime >= PULSE_HOLD_TIME then
+                    releaseE()
+                    lastReleaseTime = now
+                end
             else
-                -- mode "hold": cek terus
-                task.wait(HOLD_CHECK_TIME)
+                -- Fase release
+                if now - lastReleaseTime >= PULSE_REL_TIME then
+                    pressE()
+                    lastPressTime = now
+                    lastReleaseTime = 0
+                end
+            end
+        else
+            -- Mode hold
+            if now - lastPressTime >= HOLD_CHECK_TIME then
+                pressE()
+                lastPressTime = now
             end
         end
-
-        -- Pastikan E dilepas saat stop
-        releaseE()
     end)
 
-    -- Update UI
     autoHoldLabel.Text = "Auto-Hold E [B]: ON (" .. string.upper(autoHoldMode) .. ")"
     autoHoldLabel.TextColor3 = T.statusFlyText
     autoHoldDot.BackgroundColor3 = T.statusFlyDot
 end
 
 local function stopAutoHold()
-    if not autoHolding then return end
+    if not autoHolding then
+        -- Tetap lepas E buat jaga-jaga
+        releaseE()
+        return
+    end
     autoHolding = false
 
-    if autoHoldThread then
-        task.cancel(autoHoldThread)
-        autoHoldThread = nil
+    -- Disconnect DULU
+    if autoHoldConnection then
+        autoHoldConnection:Disconnect()
+        autoHoldConnection = nil
     end
 
+    -- Baru lepas
     releaseE()
 
     autoHoldLabel.Text = "Auto-Hold E [B]: OFF"
@@ -931,12 +957,26 @@ local function toggleMode()
 
     modeLabel.Text = "Mode: " .. string.upper(autoHoldMode) .. " [N]"
 
-    -- Restart kalau sedang ON
     if autoHolding then
         stopAutoHold()
-        task.wait(0.1)
+        task.wait(0.15)
         startAutoHold()
     end
+end
+
+local function panicStop()
+    stopAutoHold()
+    -- Lepas semua tombol yang mungkin nyangkut
+    if hasKeypressSupport() then
+        for _, k in pairs({
+            Enum.KeyCode.E, Enum.KeyCode.W, Enum.KeyCode.A,
+            Enum.KeyCode.S, Enum.KeyCode.D, Enum.KeyCode.Space,
+            Enum.KeyCode.LeftShift, Enum.KeyCode.RightShift
+        }) do
+            pcall(function() keyrelease(k) end)
+        end
+    end
+    print("[Pall Fly] Panic stop — semua tombol dilepas")
 end
 
 --========================= FLY LOGIC =========================--
@@ -1052,6 +1092,8 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         toggleAutoHold()
     elseif input.KeyCode == MODE_KEY then
         toggleMode()
+    elseif input.KeyCode == PANIC_KEY then
+        panicStop()
     end
 end)
 
