@@ -1,13 +1,15 @@
 --========================================================--
 --  Pall Fly                                            --
 --  By @Pall                                            --
---  Fitur: Fly, Minimize, Hide, Logo, Resize, Themes   --
+--  Fitur: Fly, Minimize, Hide, Logo, Resize, Themes,  --
+--         Auto-Hold E (B)                              --
 --========================================================--
 
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
@@ -20,10 +22,18 @@ local TOGGLE_KEY     = Enum.KeyCode.C
 local MINIMIZE_KEY   = Enum.KeyCode.M
 local HIDE_KEY       = Enum.KeyCode.H
 local THEME_KEY      = Enum.KeyCode.T
+local AUTOHOLD_KEY   = Enum.KeyCode.B
+local MODE_KEY       = Enum.KeyCode.N
 local SPEED_MIN      = 1
 local SPEED_MAX      = 1000
 
--- ✅ Logo otomatis pakai avatar user sendiri
+-- Auto-Hold config
+local AUTO_HOLD_MODE  = "pulse"   -- "hold" atau "pulse"
+local PULSE_HOLD_TIME = 0.15      -- detik nahan
+local PULSE_REL_TIME  = 0.05      -- detik lepas
+local HOLD_CHECK_TIME = 0.1       -- cek tiap X detik (mode hold)
+
+-- Logo otomatis pakai avatar user sendiri
 local LOGO_IMAGE_ID  = "rbxthumb://type=AvatarHeadShot&id=" .. player.UserId .. "&w=150&h=150"
 
 -- Theme default: "light" atau "dark"
@@ -135,7 +145,7 @@ screenGui.Parent = playerGui
 
 --========================= MAIN PANEL =========================--
 local PANEL_W = 220
-local PANEL_H = 250
+local PANEL_H = 290
 
 local panel = Instance.new("Frame")
 panel.Name = "Panel"
@@ -209,8 +219,8 @@ themeBtn.BackgroundColor3 = T.themeBtnBg
 themeBtn.BorderSizePixel = 0
 themeBtn.Text = "☾"
 themeBtn.TextColor3 = T.themeBtnText
-themeBtn.Font = Enum.Font.GothamBold
-themeBtn.TextSize = 15
+themeBtn.Font = Enum.Font.SourceSansBold
+themeBtn.TextSize = 16
 themeBtn.AutoButtonColor = false
 themeBtn.Parent = titleBar
 local themeCorner = Instance.new("UICorner")
@@ -383,16 +393,64 @@ statusLabel.TextColor3 = T.statusText
 statusLabel.TextXAlignment = Enum.TextXAlignment.Left
 statusLabel.Parent = statusRow
 
+--========================= AUTO-HOLD INDICATOR =========================--
+local autoHoldRow = Instance.new("Frame")
+autoHoldRow.Size = UDim2.new(1, -28, 0, 20)
+autoHoldRow.Position = UDim2.new(0, 14, 0, 206)
+autoHoldRow.BackgroundTransparency = 1
+autoHoldRow.Parent = panel
+
+local autoHoldDot = Instance.new("Frame")
+autoHoldDot.Name = "AutoHoldDot"
+autoHoldDot.Size = UDim2.new(0, 7, 0, 7)
+autoHoldDot.Position = UDim2.new(0, 0, 0.5, -3)
+autoHoldDot.BackgroundColor3 = T.statusIdleDot
+autoHoldDot.BorderSizePixel = 0
+autoHoldDot.Parent = autoHoldRow
+local aHDotCorner = Instance.new("UICorner")
+aHDotCorner.CornerRadius = UDim.new(1, 0)
+aHDotCorner.Parent = autoHoldDot
+
+local autoHoldLabel = Instance.new("TextLabel")
+autoHoldLabel.Name = "AutoHoldLabel"
+autoHoldLabel.Text = "Auto-Hold E [B]: OFF"
+autoHoldLabel.Size = UDim2.new(1, -14, 1, 0)
+autoHoldLabel.Position = UDim2.new(0, 14, 0, 0)
+autoHoldLabel.BackgroundTransparency = 1
+autoHoldLabel.Font = Enum.Font.Gotham
+autoHoldLabel.TextSize = 10
+autoHoldLabel.TextColor3 = T.statusText
+autoHoldLabel.TextXAlignment = Enum.TextXAlignment.Left
+autoHoldLabel.Parent = autoHoldRow
+
+--========================= MODE INDICATOR =========================--
+local modeRow = Instance.new("Frame")
+modeRow.Size = UDim2.new(1, -28, 0, 18)
+modeRow.Position = UDim2.new(0, 14, 0, 228)
+modeRow.BackgroundTransparency = 1
+modeRow.Parent = panel
+
+local modeLabel = Instance.new("TextLabel")
+modeLabel.Name = "ModeLabel"
+modeLabel.Text = "Mode: PULSE [N]"
+modeLabel.Size = UDim2.new(1, 0, 1, 0)
+modeLabel.BackgroundTransparency = 1
+modeLabel.Font = Enum.Font.Gotham
+modeLabel.TextSize = 9
+modeLabel.TextColor3 = T.keybindText
+modeLabel.TextXAlignment = Enum.TextXAlignment.Left
+modeLabel.Parent = modeRow
+
 --========================= KEYBIND INFO =========================--
 local keybindRow = Instance.new("Frame")
 keybindRow.Size = UDim2.new(1, -28, 0, 20)
-keybindRow.Position = UDim2.new(0, 14, 0, 206)
+keybindRow.Position = UDim2.new(0, 14, 0, 248)
 keybindRow.BackgroundTransparency = 1
 keybindRow.Parent = panel
 
 local keybindLbl = Instance.new("TextLabel")
 keybindLbl.Name = "KeybindLbl"
-keybindLbl.Text = "C Fly | M Min | H Hide | T Theme"
+keybindLbl.Text = "C Fly | M Min | H Hide | T Theme | B Auto"
 keybindLbl.Size = UDim2.new(1, 0, 1, 0)
 keybindLbl.BackgroundTransparency = 1
 keybindLbl.Font = Enum.Font.Gotham
@@ -411,8 +469,8 @@ resizeHandle.BackgroundColor3 = T.resizeBg
 resizeHandle.BorderSizePixel = 0
 resizeHandle.Text = "⤡"
 resizeHandle.TextColor3 = T.resizeText
-resizeHandle.Font = Enum.Font.GothamBold
-resizeHandle.TextSize = 12
+resizeHandle.Font = Enum.Font.SourceSansBold
+resizeHandle.TextSize = 14
 resizeHandle.AutoButtonColor = false
 resizeHandle.ZIndex = 10
 resizeHandle.Parent = panel
@@ -459,8 +517,7 @@ local logoImageCorner = Instance.new("UICorner")
 logoImageCorner.CornerRadius = UDim.new(1, 0)
 logoImageCorner.Parent = logoImage
 
--- Fallback: kalau gambar gagal load, tampilkan huruf P
-logoBtn.Text = ""  -- sembunyikan huruf P dulu
+logoBtn.Text = ""
 logoImage:GetPropertyChangedSignal("IsLoaded"):Connect(function()
     if logoImage.IsLoaded then
         logoImage.Visible = true
@@ -496,6 +553,11 @@ local isHidden = false
 local isResizing = false
 local resizeStart, resizeStartSize
 
+-- Auto-hold state
+local autoHolding = false
+local autoHoldThread = nil
+local autoHoldMode = AUTO_HOLD_MODE
+
 --========================= THEME APPLY =========================--
 local function applyTheme(themeName)
     currentTheme = themeName
@@ -528,6 +590,10 @@ local function applyTheme(themeName)
     tw(statusDot, { BackgroundColor3 = flying and T.statusFlyDot or T.statusIdleDot })
     tw(statusLabel, { TextColor3 = flying and T.statusFlyText or T.statusText })
 
+    tw(autoHoldLabel, { TextColor3 = autoHolding and T.statusFlyText or T.statusText })
+    tw(autoHoldDot, { BackgroundColor3 = autoHolding and T.statusFlyDot or T.statusIdleDot })
+
+    tw(modeLabel, { TextColor3 = T.keybindText })
     tw(keybindLbl, { TextColor3 = T.keybindText })
 
     tw(minimizeBtn, { BackgroundColor3 = T.minBtnBg, TextColor3 = T.minBtnText })
@@ -782,6 +848,97 @@ local function setUIFlying(state)
     end
 end
 
+--========================= AUTO-HOLD E SYSTEM =========================--
+local function hasKeypressSupport()
+    return type(keypress) == "function" and type(keyrelease) == "function"
+end
+
+local function pressE()
+    if hasKeypressSupport() then
+        keypress(Enum.KeyCode.E)
+    else
+        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+    end
+end
+
+local function releaseE()
+    if hasKeypressSupport() then
+        keyrelease(Enum.KeyCode.E)
+    else
+        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+    end
+end
+
+local function startAutoHold()
+    if autoHolding then return end
+    autoHolding = true
+
+    autoHoldThread = task.spawn(function()
+        while autoHolding do
+            pressE()
+
+            if autoHoldMode == "pulse" then
+                task.wait(PULSE_HOLD_TIME)
+                if not autoHolding then break end
+                releaseE()
+                task.wait(PULSE_REL_TIME)
+            else
+                -- mode "hold": cek terus
+                task.wait(HOLD_CHECK_TIME)
+            end
+        end
+
+        -- Pastikan E dilepas saat stop
+        releaseE()
+    end)
+
+    -- Update UI
+    autoHoldLabel.Text = "Auto-Hold E [B]: ON (" .. string.upper(autoHoldMode) .. ")"
+    autoHoldLabel.TextColor3 = T.statusFlyText
+    autoHoldDot.BackgroundColor3 = T.statusFlyDot
+end
+
+local function stopAutoHold()
+    if not autoHolding then return end
+    autoHolding = false
+
+    if autoHoldThread then
+        task.cancel(autoHoldThread)
+        autoHoldThread = nil
+    end
+
+    releaseE()
+
+    autoHoldLabel.Text = "Auto-Hold E [B]: OFF"
+    autoHoldLabel.TextColor3 = T.statusText
+    autoHoldDot.BackgroundColor3 = T.statusIdleDot
+end
+
+local function toggleAutoHold()
+    if autoHolding then
+        stopAutoHold()
+    else
+        startAutoHold()
+    end
+end
+
+local function toggleMode()
+    if autoHoldMode == "hold" then
+        autoHoldMode = "pulse"
+    else
+        autoHoldMode = "hold"
+    end
+
+    modeLabel.Text = "Mode: " .. string.upper(autoHoldMode) .. " [N]"
+
+    -- Restart kalau sedang ON
+    if autoHolding then
+        stopAutoHold()
+        task.wait(0.1)
+        startAutoHold()
+    end
+end
+
 --========================= FLY LOGIC =========================--
 local function getCharacter()
     return player.Character or player.CharacterAdded:Wait()
@@ -891,6 +1048,10 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         toggleHide()
     elseif input.KeyCode == THEME_KEY then
         toggleTheme()
+    elseif input.KeyCode == AUTOHOLD_KEY then
+        toggleAutoHold()
+    elseif input.KeyCode == MODE_KEY then
+        toggleMode()
     end
 end)
 
@@ -900,8 +1061,10 @@ player.CharacterAdded:Connect(function()
     bodyVel  = nil
     bodyGyro = nil
     setUIFlying(false)
+    stopAutoHold()
     task.defer(function() applySliderPercent(getThumbPercent()) end)
 end)
 
 --========================= INIT =========================--
+modeLabel.Text = "Mode: " .. string.upper(autoHoldMode) .. " [N]"
 applyTheme(DEFAULT_THEME)
